@@ -3,7 +3,7 @@ services:
     build:
       context: ./mssql
       dockerfile: ./Dockerfile
-    container_name: mssql_server
+    container_name: mssql
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
