@@ -9,6 +9,6 @@ if [ ! -f "$BACKUP_FILE" ]; then
     curl -L -o "$BACKUP_FILE" https://github.com/Microsoft/sql-server-samples/releases/download/adventureworks/AdventureWorksDW2025.bak
 fi
 
-/var/opt/mssql/config/configure-db.sh &
+/usr/config/configure-db.sh &
 
 exec /opt/mssql/bin/sqlservr
