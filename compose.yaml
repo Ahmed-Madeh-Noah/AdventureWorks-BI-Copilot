@@ -2,7 +2,7 @@ services:
   mssql:
     build:
       context: ./mssql
-      dockerfile: ./Dockerfile
+      dockerfile: Dockerfile
     container_name: mssql
     ports:
       - ${MSSQL_PORT}:1433
@@ -30,6 +30,15 @@ services:
       - PASSWORD_con1=${MSSQL_DBGATE_READER_PASSWORD}
       - PORT_con1=${MSSQL_PORT}
       - ENGINE_con1=mssql@dbgate-plugin-mssql
+
+  context_retriever:
+    build:
+      context: ./context-retriever
+      dockerfile: Dockerfile
+    container_name: context_retriever
+    volumes:
+      - ./context-retriever:/usr/src/app  
+
 
 volumes:
   mssql_data:
