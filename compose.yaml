@@ -1,0 +1,34 @@
+services:
+  mssql:
+    build:
+      context: ./mssql
+      dockerfile: ./Dockerfile
+    container_name: mssql
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+      - MSSQL_PID=Developer
+  
+  dbgate:
+    image: dbgate/dbgate:latest
+    container_name: dbgate
+    ports:
+      - 3000:3000
+    volumes:
+      - dbgate-data:/root/.dbgate
+    environment:
+      - CONNECTIONS=con1
+      - LABEL_con1=mssql
+      - SERVER_con1=mssql
+      - USER_con1=sa
+      - PASSWORD_con1=${MSSQL_SA_PASSWORD}
+      - PORT_con1=1433
+      - ENGINE_con1=mssql@dbgate-plugin-mssql
+
+volumes:
+  mssql_data:
+  dbgate-data:
