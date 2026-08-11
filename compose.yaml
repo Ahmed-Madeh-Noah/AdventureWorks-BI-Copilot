@@ -5,7 +5,7 @@ services:
       dockerfile: ./Dockerfile
     container_name: mssql
     ports:
-      - "1433:1433"
+      - ${MSSQL_PORT}:1433
     volumes:
       - mssql_data:/var/opt/mssql
     environment:
@@ -19,7 +19,7 @@ services:
     image: dbgate/dbgate:latest
     container_name: dbgate
     ports:
-      - 3000:3000
+      - ${DBGATE_PORT}:3000
     volumes:
       - dbgate-data:/root/.dbgate
     environment:
@@ -28,7 +28,7 @@ services:
       - SERVER_con1=mssql
       - USER_con1=${MSSQL_DBGATE_READER_USERNAME}
       - PASSWORD_con1=${MSSQL_DBGATE_READER_PASSWORD}
-      - PORT_con1=1433
+      - PORT_con1=${MSSQL_PORT}
       - ENGINE_con1=mssql@dbgate-plugin-mssql
 
 volumes:
