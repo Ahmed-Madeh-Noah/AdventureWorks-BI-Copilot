@@ -11,6 +11,8 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
+      - MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}
+      - MSSQL_DBGATE_READER_PASSWORD=${MSSQL_DBGATE_READER_PASSWORD}
       - MSSQL_PID=Developer
   
   dbgate:
@@ -24,8 +26,8 @@ services:
       - CONNECTIONS=con1
       - LABEL_con1=mssql
       - SERVER_con1=mssql
-      - USER_con1=sa
-      - PASSWORD_con1=${MSSQL_SA_PASSWORD}
+      - USER_con1=${MSSQL_DBGATE_READER_USERNAME}
+      - PASSWORD_con1=${MSSQL_DBGATE_READER_PASSWORD}
       - PORT_con1=1433
       - ENGINE_con1=mssql@dbgate-plugin-mssql
 
