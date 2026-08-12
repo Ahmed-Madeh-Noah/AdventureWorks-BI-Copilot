@@ -13,8 +13,10 @@ services:
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
       - MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}
       - MSSQL_DBGATE_READER_PASSWORD=${MSSQL_DBGATE_READER_PASSWORD}
+      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
       - MSSQL_PID=Developer
-  
+
   dbgate:
     image: dbgate/dbgate:latest
     container_name: dbgate
@@ -37,8 +39,13 @@ services:
       dockerfile: Dockerfile
     container_name: context_retriever
     volumes:
-      - ./context-retriever:/usr/src/app  
-
+      - ./context-retriever:/usr/src/app
+    environment:
+      - MSSQL_SERVER=mssql
+      - MSSQL_PORT=${MSSQL_PORT}
+      - MSSQL_DATABASE=AdventureWorks2025
+      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
 
 volumes:
   mssql_data:
