@@ -1,7 +1,9 @@
 from os import getenv
+from pathlib import Path
 
 from dotenv import load_dotenv
 from mssql_python import connect
+from toon_format import encode
 
 
 def get_sql_connection_str() -> str:
@@ -30,16 +32,21 @@ def get_sql_connection_str() -> str:
 
 def main() -> None:
     sql_connection_str = get_sql_connection_str()
+    get_db_schema_path = Path("./get_db_schema.sql")
+    assert get_db_schema_path.is_file(), "DB schema getter query file not found"
     with (
         connect(sql_connection_str) as conn,
         conn.cursor() as cursor,
-        open("./get_db_schema.sql") as get_db_schema_file,
+        open(get_db_schema_path.resolve()) as get_db_schema_file,
     ):
         get_db_schema_query = get_db_schema_file.read()
         cursor.execute(get_db_schema_query)
-        records = cursor.fetchall()
-        for r in records:
-            print(r)
+        assert cursor.description is not None, "Query description not found."
+        column_names = tuple(column[0] for column in cursor.description)
+        rows = [tuple(row) for row in cursor.fetchall()]
+        records = [column_names] + rows
+        toon_formatted_records = encode(records)
+        print(toon_formatted_records)
 
 
 if __name__ == "__main__":

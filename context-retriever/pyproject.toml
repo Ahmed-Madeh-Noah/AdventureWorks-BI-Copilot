@@ -7,4 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "dotenv>=0.9.9",
     "mssql-python>=1.13.0",
+    "toon-format",
 ]
+
+[tool.uv.sources]
+toon-format = { git = "https://github.com/toon-format/toon-python.git" }

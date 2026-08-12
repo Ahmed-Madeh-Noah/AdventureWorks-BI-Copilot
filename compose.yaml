@@ -41,6 +41,7 @@ services:
     volumes:
       - ./context-retriever:/usr/src/app
     environment:
+      - UV_NO_DEV=1
       - MSSQL_SERVER=mssql
       - MSSQL_PORT=${MSSQL_PORT}
       - MSSQL_DATABASE=AdventureWorks2025
