@@ -2,19 +2,27 @@ services:
   mssql:
     build:
       context: ./mssql
-      dockerfile: ./Dockerfile
+      dockerfile: Dockerfile
     container_name: mssql
     ports:
       - ${MSSQL_PORT}:1433
     volumes:
       - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-C", "-Q", "SELECT 1" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 120s
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
       - MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}
       - MSSQL_DBGATE_READER_PASSWORD=${MSSQL_DBGATE_READER_PASSWORD}
+      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
       - MSSQL_PID=Developer
-  
+
   dbgate:
     image: dbgate/dbgate:latest
     container_name: dbgate
@@ -22,6 +30,9 @@ services:
       - ${DBGATE_PORT}:3000
     volumes:
       - dbgate-data:/root/.dbgate
+    depends_on:
+      mssql:
+        condition: service_healthy
     environment:
       - CONNECTIONS=con1
       - LABEL_con1=mssql
@@ -30,6 +41,26 @@ services:
       - PASSWORD_con1=${MSSQL_DBGATE_READER_PASSWORD}
       - PORT_con1=${MSSQL_PORT}
       - ENGINE_con1=mssql@dbgate-plugin-mssql
+
+  context_retriever:
+    build:
+      context: ./context-retriever
+      dockerfile: Dockerfile
+    container_name: context_retriever
+    ports:
+      - ${CONTEXT_RETRIEVER_PORT}:8000
+    volumes:
+      - ./context-retriever:/usr/src/app
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      - UV_NO_DEV=1
+      - MSSQL_SERVER=mssql
+      - MSSQL_PORT=${MSSQL_PORT}
+      - MSSQL_DATABASE=AdventureWorks2025
+      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
 
 volumes:
   mssql_data:
