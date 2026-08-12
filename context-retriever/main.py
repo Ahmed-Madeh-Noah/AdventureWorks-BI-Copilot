@@ -1,53 +1,65 @@
-from os import getenv
-from pathlib import Path
+from contextlib import asynccontextmanager
 
+import anyio
 from dotenv import load_dotenv
+from fastapi import Body, FastAPI, Request
 from mssql_python import connect
+from pydantic_settings import BaseSettings
 from toon_format import encode
 
 
-def get_sql_connection_str() -> str:
-    load_dotenv()
-    server = getenv("MSSQL_SERVER")
-    assert server is not None, "Could not find MSSQL_SERVER environment variable."
-    port = getenv("MSSQL_PORT")
-    assert port is not None, "Could not find MSSQL_PORT environment variable."
-    database = getenv("MSSQL_DATABASE")
-    assert database is not None, "Could not find MSSQL_DATABASE environment variable."
-    username = getenv("MSSQL_CONTEXT_RETRIEVER_READER_USERNAME")
-    assert username is not None, (
-        "Could not find MSSQL_CONTEXT_RETRIEVER_READER_USERNAME environment variable."
-    )
-    password = getenv("MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD")
-    assert password is not None, (
-        "Could not find MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD environment variable."
-    )
-    sql_connection_str = f"Server={server},{port};"
-    sql_connection_str += f"Database={database};"
-    sql_connection_str += f"UID={username};"
-    sql_connection_str += f"PWD={password};"
-    sql_connection_str += "Encrypt=yes;TrustServerCertificate=yes"
-    return sql_connection_str
+class Settings(BaseSettings):
+    mssql_server: str
+    mssql_port: str
+    mssql_database: str
+    mssql_context_retriever_reader_username: str
+    mssql_context_retriever_reader_password: str
+
+    @property
+    def sql_connection_str(self) -> str:
+        return (
+            f"Server={self.mssql_server},{self.mssql_port};"
+            f"Database={self.mssql_database};"
+            f"UID={self.mssql_context_retriever_reader_username};"
+            f"PWD={self.mssql_context_retriever_reader_password};"
+            "Encrypt=yes;TrustServerCertificate=yes"
+        )
 
 
-def main() -> None:
-    sql_connection_str = get_sql_connection_str()
-    get_db_schema_path = Path("./get_db_schema.sql")
-    assert get_db_schema_path.is_file(), "DB schema getter query file not found"
-    with (
-        connect(sql_connection_str) as conn,
-        conn.cursor() as cursor,
-        open(get_db_schema_path.resolve()) as get_db_schema_file,
-    ):
-        get_db_schema_query = get_db_schema_file.read()
-        cursor.execute(get_db_schema_query)
-        assert cursor.description is not None, "Query description not found."
-        column_names = tuple(column[0] for column in cursor.description)
-        rows = [tuple(row) for row in cursor.fetchall()]
-        records = [column_names] + rows
-        toon_formatted_records = encode(records)
-        print(toon_formatted_records)
+load_dotenv()
+settings = Settings()
 
 
-if __name__ == "__main__":
-    main()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.db_schema = ""
+    conn = connect(settings.sql_connection_str)
+    cursor = conn.cursor()
+
+    try:
+        get_db_schema_path = anyio.Path("./get_db_schema.sql")
+        assert await get_db_schema_path.is_file(), (
+            "DB schema getter query file not found"
+        )
+        async with await anyio.open_file(
+            await get_db_schema_path.resolve()
+        ) as get_db_schema_file:
+            get_db_schema_query = await get_db_schema_file.read()
+            cursor.execute(get_db_schema_query)
+            assert cursor.description is not None, "Query description not found."
+            column_names = tuple(column[0] for column in cursor.description)
+            rows = [tuple(row) for row in cursor.fetchall()]
+            records = [column_names] + rows
+            app.state.db_schema = encode(records)
+    finally:
+        cursor.close()
+        conn.close()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.post("/retrieve-relevant-context")
+async def root(request: Request, query: str = Body(...)) -> str:
+    return request.app.state.db_schema

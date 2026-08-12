@@ -47,6 +47,8 @@ services:
       context: ./context-retriever
       dockerfile: Dockerfile
     container_name: context_retriever
+    ports:
+      - ${CONTEXT_RETRIEVER_PORT}:8000
     volumes:
       - ./context-retriever:/usr/src/app
     depends_on:

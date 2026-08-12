@@ -14,4 +14,4 @@ RUN uv sync --locked
 
 COPY . .
 
-ENTRYPOINT [ "uv", "run", "-m" , "main"]
+ENTRYPOINT [ "uv", "run", "-m" , "fastapi", "run"]
