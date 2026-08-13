@@ -2,22 +2,13 @@
 
 DBSTATUS=1
 ERRCODE=1
-i=0
-
-until [[ "$DBSTATUS" -eq 0 && "$ERRCODE" -eq 0 ]] || [[ "$i" -ge 120 ]]; do
-    
-    ((i++))
-    DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -h -1 -t 1 -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SET NOCOUNT ON; Select SUM(state) from sys.databases")
+until [[ "$DBSTATUS" -eq 0 && "$ERRCODE" -eq 0 ]]; do
+    sleep 1
+    DBSTATUS=$(sqlcmd -U sa -P "$MSSQL_SA_PASSWORD" -S localhost -C -t 1 -h -1 -Q "SET NOCOUNT ON; Select SUM(state) from sys.databases")
     ERRCODE=$?
     if [[ -z "$DBSTATUS" ]]; then
         DBSTATUS=1
     fi
-    sleep 1
 done
 
-if [ "$DBSTATUS" -ne 0 ] || [ "$ERRCODE" -ne 0 ]; then
-    echo "SQL Server took more than 120 seconds to start up or one or more databases are not in an ONLINE state"
-    exit 1
-fi
-
-/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i /usr/config/setup.sql -v MSSQL_DBGATE_READER_USERNAME="$MSSQL_DBGATE_READER_USERNAME" MSSQL_DBGATE_READER_PASSWORD="$MSSQL_DBGATE_READER_PASSWORD" MSSQL_CONTEXT_RETRIEVER_READER_USERNAME="$MSSQL_CONTEXT_RETRIEVER_READER_USERNAME" MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD="$MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD"
+sqlcmd -U sa -P "$MSSQL_SA_PASSWORD" -S localhost -C -d master -i /usr/config/setup.sql -v MSSQL_DBGATE_READER_USERNAME="$MSSQL_DBGATE_READER_USERNAME" MSSQL_DBGATE_READER_PASSWORD="$MSSQL_DBGATE_READER_PASSWORD" MSSQL_CONTEXT_RETRIEVER_READER_USERNAME="$MSSQL_CONTEXT_RETRIEVER_READER_USERNAME" MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD="$MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD"
