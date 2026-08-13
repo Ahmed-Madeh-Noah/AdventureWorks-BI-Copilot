@@ -1,4 +1,6 @@
-Dockerfile
 __pycache__/
 .venv/
 .env
+.gitignore
+Dockerfile
+README.md
