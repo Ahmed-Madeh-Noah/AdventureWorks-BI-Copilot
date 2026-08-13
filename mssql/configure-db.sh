@@ -4,7 +4,8 @@ DBSTATUS=1
 ERRCODE=1
 i=0
 
-while [[ "$DBSTATUS" -ne 0 ]] && [[ "$i" -lt 120 ]] && [[ "$ERRCODE" -ne 0 ]]; do
+until [[ "$DBSTATUS" -eq 0 && "$ERRCODE" -eq 0 ]] || [[ "$i" -ge 120 ]]; do
+    
     ((i++))
     DBSTATUS=$(/opt/mssql-tools18/bin/sqlcmd -h -1 -t 1 -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SET NOCOUNT ON; Select SUM(state) from sys.databases")
     ERRCODE=$?

@@ -14,7 +14,7 @@ if [ ! -f "$MODEL_FILE" ]; then
     ERRCODE=1
     i=0
     
-    while [[ "$OLLAMASTATUS" -ne 0 || "$ERRCODE" -ne 0 ]] && [[ "$i" -lt 120 ]]; do
+    until [[ "$OLLAMASTATUS" -eq 0 && "$ERRCODE" -eq 0 ]] || [[ "$i" -ge 120 ]]; do
         ((i++))
         ollama list > /dev/null 2>&1
         ERRCODE=$?
