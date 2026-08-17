@@ -114,22 +114,23 @@ services:
       context_retriever:
         condition: service_healthy
     ports:
-      - "127.0.0.1:80:7860"
+      - "127.0.0.1:80:8501"
     environment:
       UV_NO_DEV: 1
       PYTHONDONTWRITEBYTECODE: 1
       UV_PROJECT_ENVIRONMENT: /opt/venv
-      GRADIO_SERVER_NAME: 0.0.0.0
     volumes:
       - ./user_interface:/usr/src/app
     entrypoint:
       - uv
       - run
       - -m
-      - main
+      - streamlit
+      - run
+      - ./main.py
     restart: on-failure:3
     healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:7860/" ]
+      test: [ "CMD", "curl", "--fail", "http://localhost:8501/" ]
       start_period: 120s
 
 volumes:
