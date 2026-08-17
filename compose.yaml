@@ -28,10 +28,10 @@ services:
     expose:
       - 11434
     environment:
-      - OLLAMA_NO_CLOUD: 1
-      - OLLAMA_FLASH_ATTENTION: 1
-      - MODEL: qwen3:4b-thinking-2507-q4_K_M
-      - OLLAMA_KV_CACHE_TYPE: q4_0
+      OLLAMA_NO_CLOUD: 1
+      OLLAMA_FLASH_ATTENTION: 1
+      MODEL: qwen3:4b-thinking-2507-q4_K_M
+      OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
       - ollama-data:/root/.ollama
       - ./ollama/entrypoint.sh:/entrypoint.sh
