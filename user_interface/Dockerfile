@@ -6,7 +6,7 @@ WORKDIR /usr/src/app
 
 
 RUN apt-get update && \
-    apt-get install --assume-yes curl git libltdl7 libkrb5-3 libgssapi-krb5-2 && \
+    apt-get install --assume-yes curl && \
     rm --recursive --force /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
