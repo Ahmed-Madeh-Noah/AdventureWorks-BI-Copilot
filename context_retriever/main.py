@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 
 import anyio
-from dotenv import load_dotenv
 from fastapi import Body, FastAPI, Request
 from mssql_python import connect
 from pydantic_settings import BaseSettings
@@ -26,7 +25,6 @@ class Settings(BaseSettings):
         )
 
 
-load_dotenv()
 settings = Settings()
 
 

@@ -51,7 +51,7 @@ services:
   context_retriever:
     container_name: context_retriever
     build:
-      context: ./context-retriever
+      context: ./context_retriever
       dockerfile: Dockerfile
     depends_on:
       mssql:
@@ -68,7 +68,7 @@ services:
       MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
       MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
     volumes:
-      - ./context-retriever:/usr/src/app
+      - ./context_retriever:/usr/src/app
     entrypoint:
       - uv
       - run
