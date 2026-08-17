@@ -28,10 +28,10 @@ services:
     expose:
       - 11434
     environment:
-      - OLLAMA_NO_CLOUD: 1
-      - OLLAMA_FLASH_ATTENTION: 1
-      - MODEL: qwen3:4b-thinking-2507-q4_K_M
-      - OLLAMA_KV_CACHE_TYPE: q4_0
+      OLLAMA_NO_CLOUD: 1
+      OLLAMA_FLASH_ATTENTION: 1
+      MODEL: qwen3:4b-thinking-2507-q4_K_M
+      OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
       - ollama-data:/root/.ollama
       - ./ollama/entrypoint.sh:/entrypoint.sh
@@ -45,7 +45,7 @@ services:
               device_ids: [ '0' ]
               capabilities: [ gpu ]
     healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:11434/" ]
+      test: [ "CMD", "ollama", "list" ]
       start_period: 120s
 
   context_retriever:
@@ -54,12 +54,14 @@ services:
       context: ./context-retriever
       dockerfile: Dockerfile
     depends_on:
-      - mssql
+      mssql:
+        condition: service_healthy
     expose:
       - 8000
     environment:
       UV_NO_DEV: 1
       UV_PROJECT_ENVIRONMENT: /opt/venv
+      PYTHONDONTWRITEBYTECODE: 1
       MSSQL_SERVER: mssql
       MSSQL_PORT: 1433
       MSSQL_DATABASE: AdventureWorks2025
@@ -82,7 +84,8 @@ services:
     container_name: dbgate
     image: dbgate/dbgate:latest
     depends_on:
-      - mssql
+      mssql:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${DBGATE_PORT}:3000"
     environment:
