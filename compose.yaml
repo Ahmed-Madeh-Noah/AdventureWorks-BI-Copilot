@@ -1,81 +1,42 @@
 services:
   mssql:
+    container_name: mssql
     build:
       context: ./mssql
       dockerfile: Dockerfile
-    container_name: mssql
-    ports:
-      - ${MSSQL_PORT}:1433
+    expose:
+      - 1433
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
+      MSSQL_DBGATE_READER_USERNAME: ${MSSQL_DBGATE_READER_USERNAME}
+      MSSQL_DBGATE_READER_PASSWORD: ${MSSQL_DBGATE_READER_PASSWORD}
+      ACCEPT_EULA: Y
+      MSSQL_PID: Developer
     volumes:
-      - mssql_data:/var/opt/mssql
+      - mssql-data:/var/opt/mssql
+    entrypoint: ./entrypoint.sh
+    restart: on-failure:3
     healthcheck:
-      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-C", "-Q", "SELECT 1" ]
-      interval: 10s
-      timeout: 3s
-      retries: 3
+      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-t", "1", "-h", "-1", "-Q", "SET NOCOUNT ON; IF (SELECT SUM(state) FROM sys.databases) > 0 RAISERROR('Databases not ready', 16, 1)", "-b" ]
       start_period: 120s
-    environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD}
-      - MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}
-      - MSSQL_DBGATE_READER_PASSWORD=${MSSQL_DBGATE_READER_PASSWORD}
-      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
-      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
-      - MSSQL_PID=Developer
-
-  dbgate:
-    image: dbgate/dbgate:latest
-    container_name: dbgate
-    ports:
-      - ${DBGATE_PORT}:3000
-    volumes:
-      - dbgate-data:/root/.dbgate
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - CONNECTIONS=con1
-      - LABEL_con1=mssql
-      - SERVER_con1=mssql
-      - USER_con1=${MSSQL_DBGATE_READER_USERNAME}
-      - PASSWORD_con1=${MSSQL_DBGATE_READER_PASSWORD}
-      - PORT_con1=${MSSQL_PORT}
-      - ENGINE_con1=mssql@dbgate-plugin-mssql
-
-  context_retriever:
-    build:
-      context: ./context-retriever
-      dockerfile: Dockerfile
-    container_name: context_retriever
-    ports:
-      - ${CONTEXT_RETRIEVER_PORT}:8000
-    volumes:
-      - ./context-retriever:/usr/src/app
-    depends_on:
-      mssql:
-        condition: service_healthy
-    environment:
-      - UV_NO_DEV=1
-      - MSSQL_SERVER=mssql
-      - MSSQL_PORT=${MSSQL_PORT}
-      - MSSQL_DATABASE=AdventureWorks2025
-      - MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
-      - MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD=${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
 
   ollama:
-    image: ollama/ollama:latest
-    entrypoint: [ "/bin/bash", "/entrypoint.sh" ]
     container_name: ollama
-    ports:
-      - ${OLLAMA_PORT}:11434
+    image: ollama/ollama:latest
+    expose:
+      - 11434
+    environment:
+      - OLLAMA_NO_CLOUD: 1
+      - OLLAMA_FLASH_ATTENTION: 1
+      - MODEL: qwen3:4b-thinking-2507-q4_K_M
+      - OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
       - ollama-data:/root/.ollama
       - ./ollama/entrypoint.sh:/entrypoint.sh
-    environment:
-      - MODEL=qwen3:4b-thinking-2507-q4_K_M
-      - OLLAMA_NO_CLOUD=1
-      - OLLAMA_FLASH_ATTENTION=1
-      - OLLAMA_KV_CACHE_TYPE=q4_0
+    entrypoint: /entrypoint.sh
+    restart: on-failure:3
     deploy:
       resources:
         reservations:
@@ -83,7 +44,63 @@ services:
             - driver: nvidia
               device_ids: [ '0' ]
               capabilities: [ gpu ]
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:11434/" ]
+      start_period: 120s
+
+  context_retriever:
+    container_name: context_retriever
+    build:
+      context: ./context-retriever
+      dockerfile: Dockerfile
+    depends_on:
+      - mssql
+    expose:
+      - 8000
+    environment:
+      UV_NO_DEV: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      MSSQL_SERVER: mssql
+      MSSQL_PORT: 1433
+      MSSQL_DATABASE: AdventureWorks2025
+      MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
+      MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
+    volumes:
+      - ./context-retriever:/usr/src/app
+    entrypoint:
+      - uv
+      - run
+      - -m
+      - fastapi
+      - run
+    restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8000/health/live" ]
+      start_period: 120s
+
+  dbgate:
+    container_name: dbgate
+    image: dbgate/dbgate:latest
+    depends_on:
+      - mssql
+    ports:
+      - "127.0.0.1:${DBGATE_PORT}:3000"
+    environment:
+      CONNECTIONS: con1
+      LABEL_con1: mssql
+      ENGINE_con1: mssql@dbgate-plugin-mssql
+      SERVER_con1: mssql
+      PORT_con1: 1433
+      USER_con1: ${MSSQL_DBGATE_READER_USERNAME}
+      PASSWORD_con1: ${MSSQL_DBGATE_READER_PASSWORD}
+    volumes:
+      - dbgate-data:/root/.dbgate
+    restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
+      start_period: 120s
+
 volumes:
-  mssql_data:
-  dbgate-data:
+  mssql-data:
   ollama-data:
+  dbgate-data:

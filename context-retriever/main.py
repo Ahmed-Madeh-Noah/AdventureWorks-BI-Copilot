@@ -60,6 +60,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+@app.get("/health/live")
+async def liveness_check():
+    return {"status": "alive"}
+
+
 @app.post("/retrieve-relevant-context")
 async def root(request: Request, query: str = Body(...)) -> str:
     return request.app.state.db_schema
