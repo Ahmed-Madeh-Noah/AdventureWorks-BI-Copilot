@@ -45,7 +45,7 @@ services:
               device_ids: [ '0' ]
               capabilities: [ gpu ]
     healthcheck:
-      test: [ "CMD", "ollama", "list"]
+      test: [ "CMD", "ollama", "list" ]
       start_period: 120s
 
   context_retriever:
