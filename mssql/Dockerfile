@@ -1,12 +1,11 @@
 FROM mcr.microsoft.com/mssql/server:2025-latest
 
-RUN apt-get update && \
-    apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/*
-
-
 WORKDIR /usr/config
 
-COPY . .
+USER root
+RUN apt-get update && \
+    apt-get install --assume-yes curl && \
+    rm --recursive --force /var/lib/apt/lists/*
+USER mssql
 
-ENTRYPOINT ["./entrypoint.sh"]
+COPY . .

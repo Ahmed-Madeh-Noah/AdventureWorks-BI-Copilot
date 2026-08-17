@@ -11,7 +11,7 @@ if [ ! -f "$MODEL_FILE" ]; then
     ERRCODE=1
     until [[ "$ERRCODE" -eq 0 ]]; do
         sleep 1
-        ollama list > /dev/null 2>&1
+        curl --fail http://localhost:11434/
         ERRCODE=$?
     done
     
