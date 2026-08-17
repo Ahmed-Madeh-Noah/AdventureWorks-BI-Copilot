@@ -6,13 +6,14 @@ services:
       dockerfile: Dockerfile
     expose:
       - 1433
-    env_file: ./mssql/.env
     environment:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
-      MSSQL_DBGATE_READER_USERNAME: ${MSSQL_DBGATE_READER_USERNAME}
-      MSSQL_DBGATE_READER_PASSWORD: ${MSSQL_DBGATE_READER_PASSWORD}
       MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
       MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
+      MSSQL_DBGATE_READER_USERNAME: ${MSSQL_DBGATE_READER_USERNAME}
+      MSSQL_DBGATE_READER_PASSWORD: ${MSSQL_DBGATE_READER_PASSWORD}
+      ACCEPT_EULA: Y
+      MSSQL_PID: Developer
     volumes:
       - mssql-data:/var/opt/mssql
     entrypoint: ./entrypoint.sh
@@ -26,7 +27,11 @@ services:
     image: ollama/ollama:latest
     expose:
       - 11434
-    env_file: ./ollama/.env
+    environment:
+      - OLLAMA_NO_CLOUD: 1
+      - OLLAMA_FLASH_ATTENTION: 1
+      - MODEL: qwen3:4b-thinking-2507-q4_K_M
+      - OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
       - ollama-data:/root/.ollama
       - ./ollama/entrypoint.sh:/entrypoint.sh
@@ -52,9 +57,12 @@ services:
       - mssql
     expose:
       - 8000
-    env_file: ./context-retriever/.env
     environment:
+      UV_NO_DEV: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      MSSQL_SERVER: mssql
       MSSQL_PORT: 1433
+      MSSQL_DATABASE: AdventureWorks2025
       MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
       MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
     volumes:
@@ -77,11 +85,14 @@ services:
       - mssql
     ports:
       - "127.0.0.1:${DBGATE_PORT}:3000"
-    env_file: ./dbgate/.env
     environment:
+      CONNECTIONS: con1
+      LABEL_con1: mssql
+      ENGINE_con1: mssql@dbgate-plugin-mssql
+      SERVER_con1: mssql
+      PORT_con1: 1433
       USER_con1: ${MSSQL_DBGATE_READER_USERNAME}
       PASSWORD_con1: ${MSSQL_DBGATE_READER_PASSWORD}
-      PORT_con1: 1433
     volumes:
       - dbgate-data:/root/.dbgate
     restart: on-failure:3
