@@ -1,12 +1,4 @@
-import gradio as gr
+import streamlit as st
 
-
-def greet(name, intensity):
-    return "Hello, " + name + "!" * int(intensity)
-
-
-demo = gr.Interface(
-    fn=greet, inputs=["text", "slider"], outputs=["text"], api_name="predict"
-)
-
-demo.launch()
+x = st.slider("x")
+st.write(x, "squared is", x * x)
