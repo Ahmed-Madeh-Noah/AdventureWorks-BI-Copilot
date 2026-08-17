@@ -16,6 +16,9 @@ services:
       - mssql-data:/var/opt/mssql
     entrypoint: ./entrypoint.sh
     restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-t", "1", "-h", "-1", "-Q", "SET NOCOUNT ON; IF (SELECT SUM(state) FROM sys.databases) > 0 RAISERROR('Databases not ready', 16, 1)", "-b" ]
+      start_period: 120s
 
   ollama:
     container_name: ollama
@@ -35,6 +38,9 @@ services:
             - driver: nvidia
               device_ids: [ '0' ]
               capabilities: [ gpu ]
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:11434/" ]
+      start_period: 120s
 
   context_retriever:
     container_name: context_retriever
@@ -59,6 +65,9 @@ services:
       - fastapi
       - run
     restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8000/health/live" ]
+      start_period: 120s
 
   dbgate:
     container_name: dbgate
@@ -75,6 +84,9 @@ services:
     volumes:
       - dbgate-data:/root/.dbgate
     restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
+      start_period: 120s
 
 volumes:
   mssql-data:
