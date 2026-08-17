@@ -21,7 +21,7 @@ class Settings(BaseSettings):
             f"Server={self.mssql_server},{self.mssql_port};"
             f"Database={self.mssql_database};"
             f"UID={self.mssql_context_retriever_reader_username};"
-            f"PWD={self.mssql_context_retriever_reader_password};"
+            f"PWD={{{self.mssql_context_retriever_reader_password}}};"
             "Encrypt=yes;TrustServerCertificate=yes"
         )
 
