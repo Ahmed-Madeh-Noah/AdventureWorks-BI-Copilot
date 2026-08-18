@@ -60,8 +60,8 @@ services:
       - 8000
     environment:
       UV_NO_DEV: 1
-      UV_PROJECT_ENVIRONMENT: /opt/venv
       PYTHONDONTWRITEBYTECODE: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
       MSSQL_SERVER: mssql
       MSSQL_PORT: 1433
       MSSQL_DATABASE: AdventureWorks2025
@@ -87,7 +87,7 @@ services:
       mssql:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${DBGATE_PORT}:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       CONNECTIONS: con1
       LABEL_con1: mssql
@@ -101,6 +101,36 @@ services:
     restart: on-failure:3
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
+      start_period: 120s
+
+  user_interface:
+    container_name: user_interface
+    build:
+      context: ./user_interface
+      dockerfile: Dockerfile
+    depends_on:
+      ollama:
+        condition: service_healthy
+      context_retriever:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:80:8501"
+    environment:
+      UV_NO_DEV: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+    volumes:
+      - ./user_interface:/usr/src/app
+    entrypoint:
+      - uv
+      - run
+      - -m
+      - streamlit
+      - run
+      - ./main.py
+    restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8501/" ]
       start_period: 120s
 
 volumes:
