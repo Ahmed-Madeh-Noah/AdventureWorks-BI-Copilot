@@ -8,4 +8,6 @@ RUN apt-get update && \
     rm --recursive --force /var/lib/apt/lists/*
 USER mssql
 
+RUN curl --location --remote-name https://github.com/Microsoft/sql-server-samples/releases/download/adventureworks/AdventureWorksDW2025.bak
+
 COPY . .
