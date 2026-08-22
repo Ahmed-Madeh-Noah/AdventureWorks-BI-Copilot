@@ -1,5 +1,5 @@
 [project]
-name = "streamlit_user_interface"
+name = "streamlit_app"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
