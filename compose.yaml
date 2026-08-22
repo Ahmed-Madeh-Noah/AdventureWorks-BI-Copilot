@@ -19,7 +19,7 @@ services:
     entrypoint: ./entrypoint.sh
     restart: on-failure:3
     healthcheck:
-      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-t", "1", "-h", "-1", "-Q", "SET NOCOUNT ON; IF (SELECT SUM(state) FROM sys.databases) > 0 RAISERROR('Databases not ready', 16, 1)", "-b" ]
+      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-i", "/usr/config/check_setup.sql", "-v", "MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}", "MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}", "-b" ]
       start_period: 120s
 
   ollama:
@@ -30,12 +30,9 @@ services:
     environment:
       OLLAMA_NO_CLOUD: 1
       OLLAMA_FLASH_ATTENTION: 1
-      MODEL: qwen3:4b-thinking-2507-q4_K_M
       OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
       - ollama-data:/root/.ollama
-      - ./ollama/entrypoint.sh:/entrypoint.sh
-    entrypoint: /entrypoint.sh
     restart: on-failure:3
     deploy:
       resources:
@@ -47,6 +44,22 @@ services:
     healthcheck:
       test: [ "CMD", "ollama", "list" ]
       start_period: 120s
+
+  ollama_setup:
+    container_name: ollama_setup
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+      MODELS: qwen3:4b-thinking-2507-q4_K_M
+    volumes:
+      - ./ollama/setup_models.sh:/setup_models.sh
+    entrypoint:
+      - /bin/bash
+      - /setup_models.sh
+    restart: "no"
 
   context_retriever:
     container_name: context_retriever
@@ -82,12 +95,14 @@ services:
 
   dbgate:
     container_name: dbgate
-    image: dbgate/dbgate:latest
+    build:
+      context: ./dbgate
+      dockerfile: Dockerfile
     depends_on:
       mssql:
         condition: service_healthy
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:{DBGATE_PORT}:3000"
     environment:
       CONNECTIONS: con1
       LABEL_con1: mssql
@@ -103,24 +118,24 @@ services:
       test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
       start_period: 120s
 
-  user_interface:
-    container_name: user_interface
+  streamlit:
+    container_name: streamlit_user_interface
     build:
-      context: ./user_interface
+      context: ./streamlit_user_interface
       dockerfile: Dockerfile
     depends_on:
-      ollama:
-        condition: service_healthy
+      ollama_setup:
+        condition: service_completed_successfully
       context_retriever:
         condition: service_healthy
     ports:
-      - "127.0.0.1:80:8501"
+      - "127.0.0.1:{STREAMLIT_PORT}:8501"
     environment:
       UV_NO_DEV: 1
       PYTHONDONTWRITEBYTECODE: 1
       UV_PROJECT_ENVIRONMENT: /opt/venv
     volumes:
-      - ./user_interface:/usr/src/app
+      - ./streamlit_user_interface:/usr/src/app
     entrypoint:
       - uv
       - run

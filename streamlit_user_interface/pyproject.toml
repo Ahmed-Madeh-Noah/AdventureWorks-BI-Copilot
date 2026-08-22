@@ -1,5 +1,5 @@
 [project]
-name = "user-interface"
+name = "streamlit_user_interface"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
