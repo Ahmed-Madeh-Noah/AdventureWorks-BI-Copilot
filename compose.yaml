@@ -119,9 +119,9 @@ services:
       start_period: 120s
 
   streamlit:
-    container_name: streamlit_user_interface
+    container_name: streamlit
     build:
-      context: ./streamlit_user_interface
+      context: ./streamlit_app
       dockerfile: Dockerfile
     depends_on:
       ollama_setup:
@@ -135,7 +135,7 @@ services:
       PYTHONDONTWRITEBYTECODE: 1
       UV_PROJECT_ENVIRONMENT: /opt/venv
     volumes:
-      - ./streamlit_user_interface:/usr/src/app
+      - ./streamlit_app:/usr/src/app
     entrypoint:
       - uv
       - run
