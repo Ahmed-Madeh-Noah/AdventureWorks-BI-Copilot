@@ -15,7 +15,7 @@ services:
       ACCEPT_EULA: Y
       MSSQL_PID: Developer
     volumes:
-      - mssql-data:/var/opt/mssql
+      - mssql_data:/var/opt/mssql
     entrypoint: ./entrypoint.sh
     restart: on-failure:3
     healthcheck:
@@ -32,7 +32,7 @@ services:
       OLLAMA_FLASH_ATTENTION: 1
       OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama_data:/root/.ollama
     restart: on-failure:3
     deploy:
       resources:
@@ -55,7 +55,7 @@ services:
       OLLAMA_HOST: "http://ollama:11434"
       MODELS: qwen3:4b-thinking-2507-q4_K_M
     volumes:
-      - ./ollama/setup_models.sh:/setup_models.sh
+      - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
       - /bin/bash
       - /setup_models.sh
@@ -72,10 +72,10 @@ services:
     environment:
       - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
     volumes:
-      - neo4j-logs:/logs
-      - neo4j-conf:/conf
-      - neo4j-data:/data
-      - neo4j-plugins:/plugins
+      - neo4j_logs:/logs
+      - neo4j_conf:/conf
+      - neo4j_data:/data
+      - neo4j_plugins:/plugins
     restart: on-failure:3
     healthcheck:
       test: [ "CMD", "neo4j", "status" ]
@@ -132,14 +132,14 @@ services:
       USER_con1: ${MSSQL_DBGATE_READER_USERNAME}
       PASSWORD_con1: ${MSSQL_DBGATE_READER_PASSWORD}
     volumes:
-      - dbgate-data:/root/.dbgate
+      - dbgate_data:/root/.dbgate
     restart: on-failure:3
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
       start_period: 120s
 
   streamlit:
-    container_name: streamlit
+    container_name: streamlit_user_interface
     build:
       context: ./streamlit_user_interface
       dockerfile: Dockerfile
@@ -169,10 +169,10 @@ services:
       start_period: 120s
 
 volumes:
-  mssql-data:
-  ollama-data:
-  dbgate-data:
-  neo4j-logs:
-  neo4j-conf:
-  neo4j-data:
-  neo4j-plugins:
+  mssql_data:
+  ollama_data:
+  dbgate_data:
+  neo4j_logs:
+  neo4j_conf:
+  neo4j_data:
+  neo4j_plugins:
