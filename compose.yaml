@@ -81,6 +81,29 @@ services:
       test: [ "CMD", "neo4j", "status" ]
       start_period: 120s
 
+  neo4j_setup:
+    container_name: neo4j_setup
+    build:
+      context: ./neo4j_setup
+      dockerfile: Dockerfile
+    depends_on:
+      mssql:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      UV_NO_DEV: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+    volumes:
+      - ./neo4j_setup:/usr/src/app
+    entrypoint:
+      - uv
+      - run
+      - -m
+      - main
+    restart: "no"
+
   context_retriever:
     container_name: context_retriever
     build:
