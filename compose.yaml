@@ -95,7 +95,9 @@ services:
 
   dbgate:
     container_name: dbgate
-    image: dbgate/dbgate:latest
+    build:
+      context: ./dbgate
+      dockerfile: Dockerfile
     depends_on:
       mssql:
         condition: service_healthy
