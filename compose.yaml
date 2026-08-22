@@ -15,7 +15,7 @@ services:
       ACCEPT_EULA: Y
       MSSQL_PID: Developer
     volumes:
-      - mssql-data:/var/opt/mssql
+      - mssql_data:/var/opt/mssql
     entrypoint: ./entrypoint.sh
     restart: on-failure:3
     healthcheck:
@@ -32,7 +32,7 @@ services:
       OLLAMA_FLASH_ATTENTION: 1
       OLLAMA_KV_CACHE_TYPE: q4_0
     volumes:
-      - ollama-data:/root/.ollama
+      - ollama_data:/root/.ollama
     restart: on-failure:3
     deploy:
       resources:
@@ -112,7 +112,7 @@ services:
       USER_con1: ${MSSQL_DBGATE_READER_USERNAME}
       PASSWORD_con1: ${MSSQL_DBGATE_READER_PASSWORD}
     volumes:
-      - dbgate-data:/root/.dbgate
+      - dbgate_data:/root/.dbgate
     restart: on-failure:3
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://localhost:3000/health" ]
@@ -149,6 +149,6 @@ services:
       start_period: 120s
 
 volumes:
-  mssql-data:
-  ollama-data:
-  dbgate-data:
+  mssql_data:
+  ollama_data:
+  dbgate_data:
