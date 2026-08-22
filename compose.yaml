@@ -55,7 +55,7 @@ services:
       OLLAMA_HOST: "http://ollama:11434"
       MODELS: qwen3:4b-thinking-2507-q4_K_M
     volumes:
-      - ./ollama/setup_models.sh:/setup_models.sh
+      - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
       - /bin/bash
       - /setup_models.sh
