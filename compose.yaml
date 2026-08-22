@@ -102,7 +102,7 @@ services:
       mssql:
         condition: service_healthy
     ports:
-      - "127.0.0.1:{DBGATE_PORT}:3000"
+      - "127.0.0.1:${DBGATE_PORT}:3000"
     environment:
       CONNECTIONS: con1
       LABEL_con1: mssql
@@ -129,7 +129,7 @@ services:
       context_retriever:
         condition: service_healthy
     ports:
-      - "127.0.0.1:{STREAMLIT_PORT}:8501"
+      - "127.0.0.1:${STREAMLIT_PORT}:8501"
     environment:
       UV_NO_DEV: 1
       PYTHONDONTWRITEBYTECODE: 1
