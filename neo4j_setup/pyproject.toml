@@ -7,6 +7,11 @@ requires-python = ">=3.12"
 dependencies = [
     "mssql-python>=1.13.0",
     "neo4j>=6.2.0",
+    "ollama>=0.6.2",
     "pandas>=3.0.5",
     "sqlalchemy>=2.1.0b2",
+    "toon-format",
 ]
+
+[tool.uv.sources]
+toon-format = { git = "https://github.com/toon-format/toon-python.git" }
