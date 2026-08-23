@@ -1,7 +1,7 @@
 import os
 
 import pandas as pd
-from neo4j import Driver, GraphDatabase, Query
+from neo4j import Driver, GraphDatabase
 from sqlalchemy import Engine, create_engine, text
 
 
@@ -80,8 +80,8 @@ def populate_knowledge_graph() -> None:
         driver.verify_connectivity()
         get_db_schema_query = text(get_db_schema_file.read())
         schema_df = pd.read_sql_query(get_db_schema_query, conn)
-        merge_schema_information(driver, schema_df)
         assert len(schema_df) != 0
+        merge_schema_information(driver, schema_df)
 
 
 if __name__ == "__main__":
