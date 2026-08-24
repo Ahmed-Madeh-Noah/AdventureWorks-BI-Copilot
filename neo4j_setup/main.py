@@ -95,8 +95,8 @@ def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> N
 
     ollama_client = get_ollama_client()
 
-    llm = os.environ.get("LLM")
-    assert llm is not None
+    ollama_llm = os.environ.get("OLLAMA_LLM")
+    assert ollama_llm is not None
 
     for record in tqdm(records):
         table_name = record["TableName"]
@@ -123,7 +123,7 @@ def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> N
         """
 
         description_response = ollama_client.generate(
-            model=llm,
+            model=ollama_llm,
             prompt=prompt,
             system=system,
             think=True,
@@ -160,8 +160,8 @@ def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> 
 
     ollama_client = get_ollama_client()
 
-    llm = os.environ.get("LLM")
-    assert llm is not None
+    ollama_llm = os.environ.get("OLLAMA_LLM")
+    assert ollama_llm is not None
 
     for record in tqdm(records):
         col_name = record["ColumnName"]
@@ -189,7 +189,7 @@ def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> 
         """
 
         description_response = ollama_client.generate(
-            model=llm,
+            model=ollama_llm,
             prompt=prompt,
             system=system,
             think=True,
