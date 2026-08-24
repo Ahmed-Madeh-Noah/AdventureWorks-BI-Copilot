@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING}
+      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING},${OLLAMA_THINK}
     volumes:
       - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
@@ -149,6 +149,12 @@ services:
         condition: service_healthy
       ollama_setup:
         condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
+      neo4j_setup:
+        condition: service_completed_successfully
+      mssql:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${STREAMLIT_PORT}:8501"
     environment:
