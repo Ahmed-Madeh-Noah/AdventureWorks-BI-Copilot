@@ -141,7 +141,16 @@ def merge_table_nodes_descriptions_and_embeddings(
         assert description_response is not None
         final_description = description_response.replace(r"\n", "\n")
 
-        table_data.append({"tableName": table_name, "description": final_description})
+        driver.execute_query(
+            """//cypher
+            MATCH (t:Table {name: $tableName})
+            SET t.description = $description
+            """,
+            tableName=table_name,
+            description=final_description,
+        )
+
+        table_data.append({"tableName": table_name})
         descriptions.append(final_description)
 
     embeddings = ollama_client.embed(
@@ -149,17 +158,18 @@ def merge_table_nodes_descriptions_and_embeddings(
         input=descriptions,
     ).embeddings
 
-    for item, vector in zip(table_data, embeddings):
-        item["embedding"] = vector
+    embedding_batch = [
+        {"tableName": item["tableName"], "embedding": vector}
+        for item, vector in zip(table_data, embeddings)
+    ]
 
     driver.execute_query(
         """//cypher
         UNWIND $batch AS row
         MATCH (t:Table {name: row.tableName})
-        SET t.description = row.description,
-            t.embedding = row.embedding
+        SET t.embedding = row.embedding
         """,
-        batch=table_data,
+        batch=embedding_batch,
     )
 
 
@@ -227,13 +237,17 @@ def merge_column_nodes_descriptions_and_embeddings(
         assert description_response is not None
         final_description = description_response.replace(r"\n", "\n")
 
-        column_data.append(
-            {
-                "tableName": table_name,
-                "columnName": col_name,
-                "description": final_description,
-            }
+        driver.execute_query(
+            """//cypher
+            MATCH (t:Table {name: $tableName})-[:HAS_COLUMN]->(c:Column {name: $columnName})
+            SET c.description = $description
+            """,
+            tableName=table_name,
+            columnName=col_name,
+            description=final_description,
         )
+
+        column_data.append({"tableName": table_name, "columnName": col_name})
         descriptions.append(final_description)
 
     embeddings = ollama_client.embed(
@@ -241,17 +255,22 @@ def merge_column_nodes_descriptions_and_embeddings(
         input=descriptions,
     ).embeddings
 
-    for item, vector in zip(column_data, embeddings):
-        item["embedding"] = vector
+    embedding_batch = [
+        {
+            "tableName": item["tableName"],
+            "columnName": item["columnName"],
+            "embedding": vector,
+        }
+        for item, vector in zip(column_data, embeddings)
+    ]
 
     driver.execute_query(
         """//cypher
         UNWIND $batch AS row
         MATCH (t:Table {name: row.tableName})-[:HAS_COLUMN]->(c:Column {name: row.columnName})
-        SET c.description = row.description,
-            c.embedding = row.embedding
+        SET c.embedding = row.embedding
         """,
-        batch=column_data,
+        batch=embedding_batch,
     )
 
 
