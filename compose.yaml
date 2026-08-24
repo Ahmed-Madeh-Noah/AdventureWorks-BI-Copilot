@@ -55,7 +55,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-      MODELS: ${OLLAMA_LLM}
+      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING}
     volumes:
       - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:

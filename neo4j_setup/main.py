@@ -79,7 +79,9 @@ def get_ollama_client() -> ollama.Client:
     return ollama.Client(host="http://ollama:11434")
 
 
-def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
+def merge_table_nodes_descriptions_and_embeddings(
+    driver: Driver, schema_df: pd.DataFrame
+) -> None:
     records, _, _ = driver.execute_query(
         """//cypher
         MATCH (t:Table)
@@ -93,17 +95,23 @@ def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> N
         """
     )
 
-    ollama_client = get_ollama_client()
+    if not records:
+        return
 
+    ollama_client = get_ollama_client()
     ollama_llm = os.environ.get("OLLAMA_LLM")
     assert ollama_llm is not None
+    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
+    assert ollama_embedding is not None
 
-    for record in tqdm(records):
+    table_data = []
+    descriptions = []
+
+    for record in tqdm(records, desc="Generating table descriptions"):
         table_name = record["TableName"]
         ref_tables = record["ReferencedTables"]
 
         tables_to_include = [table_name] + ref_tables
-
         relevant_schema = schema_df[schema_df["TableName"].isin(tables_to_include)]
         schema_csv = encode(relevant_schema.to_csv(index=False))
 
@@ -133,17 +141,31 @@ def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> N
         assert description_response is not None
         final_description = description_response.replace(r"\n", "\n")
 
-        driver.execute_query(
-            """//cypher
-            MATCH (t:Table {name: $tableName})
-            SET t.description = $description
-            """,
-            tableName=table_name,
-            description=final_description,
-        )
+        table_data.append({"tableName": table_name, "description": final_description})
+        descriptions.append(final_description)
+
+    embeddings = ollama_client.embed(
+        model=ollama_embedding,
+        input=descriptions,
+    ).embeddings
+
+    for item, vector in zip(table_data, embeddings):
+        item["embedding"] = vector
+
+    driver.execute_query(
+        """//cypher
+        UNWIND $batch AS row
+        MATCH (t:Table {name: row.tableName})
+        SET t.description = row.description,
+            t.embedding = row.embedding
+        """,
+        batch=table_data,
+    )
 
 
-def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
+def merge_column_nodes_descriptions_and_embeddings(
+    driver: Driver, schema_df: pd.DataFrame
+) -> None:
     records, _, _ = driver.execute_query(
         """//cypher
         MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
@@ -158,18 +180,24 @@ def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> 
         """
     )
 
-    ollama_client = get_ollama_client()
+    if not records:
+        return
 
+    ollama_client = get_ollama_client()
     ollama_llm = os.environ.get("OLLAMA_LLM")
     assert ollama_llm is not None
+    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
+    assert ollama_embedding is not None
 
-    for record in tqdm(records):
+    column_data = []
+    descriptions = []
+
+    for record in tqdm(records, desc="Generating column descriptions"):
         col_name = record["ColumnName"]
         table_name = record["TableName"]
         ref_tables = record["ReferencedTables"]
 
         tables_to_include = [table_name] + ref_tables
-
         relevant_schema = schema_df[schema_df["TableName"].isin(tables_to_include)]
         schema_csv = encode(relevant_schema.to_csv(index=False))
 
@@ -199,20 +227,37 @@ def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> 
         assert description_response is not None
         final_description = description_response.replace(r"\n", "\n")
 
-        driver.execute_query(
-            """//cypher
-            MATCH (t:Table {name: $tableName})-[:HAS_COLUMN]->(c:Column {name: $colName})
-            SET c.description = $description
-            """,
-            tableName=table_name,
-            colName=col_name,
-            description=final_description,
+        column_data.append(
+            {
+                "tableName": table_name,
+                "columnName": col_name,
+                "description": final_description,
+            }
         )
+        descriptions.append(final_description)
+
+    embeddings = ollama_client.embed(
+        model=ollama_embedding,
+        input=descriptions,
+    ).embeddings
+
+    for item, vector in zip(column_data, embeddings):
+        item["embedding"] = vector
+
+    driver.execute_query(
+        """//cypher
+        UNWIND $batch AS row
+        MATCH (t:Table {name: row.tableName})-[:HAS_COLUMN]->(c:Column {name: row.columnName})
+        SET c.description = row.description,
+            c.embedding = row.embedding
+        """,
+        batch=column_data,
+    )
 
 
 def merge_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
-    merge_table_nodes_descriptions(driver, schema_df)
-    merge_column_nodes_descriptions(driver, schema_df)
+    merge_table_nodes_descriptions_and_embeddings(driver, schema_df)
+    merge_column_nodes_descriptions_and_embeddings(driver, schema_df)
 
 
 def populate_knowledge_graph() -> None:
