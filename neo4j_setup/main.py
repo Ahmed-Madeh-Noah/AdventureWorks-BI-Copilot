@@ -79,9 +79,7 @@ def get_ollama_client() -> ollama.Client:
     return ollama.Client(host="http://ollama:11434")
 
 
-def merge_table_nodes_descriptions_and_embeddings(
-    driver: Driver, schema_df: pd.DataFrame
-) -> None:
+def merge_table_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
     records, _, _ = driver.execute_query(
         """//cypher
         MATCH (t:Table)
@@ -101,11 +99,6 @@ def merge_table_nodes_descriptions_and_embeddings(
     ollama_client = get_ollama_client()
     ollama_llm = os.environ.get("OLLAMA_LLM")
     assert ollama_llm is not None
-    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
-    assert ollama_embedding is not None
-
-    table_data = []
-    descriptions = []
 
     for record in tqdm(records, desc="Generating table descriptions"):
         table_name = record["TableName"]
@@ -134,7 +127,7 @@ def merge_table_nodes_descriptions_and_embeddings(
             model=ollama_llm,
             prompt=prompt,
             system=system,
-            think=True,
+            think=False,
             options={"seed": 42, "temperature": 0.0},
         ).response
 
@@ -150,8 +143,29 @@ def merge_table_nodes_descriptions_and_embeddings(
             description=final_description,
         )
 
-        table_data.append({"tableName": table_name})
-        descriptions.append(final_description)
+
+def merge_table_embeddings(driver: Driver) -> None:
+    records, _, _ = driver.execute_query(
+        """//cypher
+        MATCH (t:Table)
+        WHERE t.description IS NOT NULL AND t.embedding IS NULL
+        RETURN t.name AS TableName, t.description AS Description
+        """
+    )
+
+    if not records:
+        return
+
+    ollama_client = get_ollama_client()
+    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
+    assert ollama_embedding is not None
+
+    table_data = []
+    descriptions = []
+
+    for record in tqdm(records, desc="Preparing table embeddings"):
+        table_data.append({"tableName": record["TableName"]})
+        descriptions.append(record["Description"])
 
     embeddings = ollama_client.embed(
         model=ollama_embedding,
@@ -173,9 +187,7 @@ def merge_table_nodes_descriptions_and_embeddings(
     )
 
 
-def merge_column_nodes_descriptions_and_embeddings(
-    driver: Driver, schema_df: pd.DataFrame
-) -> None:
+def merge_column_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
     records, _, _ = driver.execute_query(
         """//cypher
         MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
@@ -196,11 +208,6 @@ def merge_column_nodes_descriptions_and_embeddings(
     ollama_client = get_ollama_client()
     ollama_llm = os.environ.get("OLLAMA_LLM")
     assert ollama_llm is not None
-    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
-    assert ollama_embedding is not None
-
-    column_data = []
-    descriptions = []
 
     for record in tqdm(records, desc="Generating column descriptions"):
         col_name = record["ColumnName"]
@@ -230,7 +237,7 @@ def merge_column_nodes_descriptions_and_embeddings(
             model=ollama_llm,
             prompt=prompt,
             system=system,
-            think=True,
+            think=False,
             options={"seed": 42, "temperature": 0.0},
         ).response
 
@@ -247,8 +254,31 @@ def merge_column_nodes_descriptions_and_embeddings(
             description=final_description,
         )
 
-        column_data.append({"tableName": table_name, "columnName": col_name})
-        descriptions.append(final_description)
+
+def merge_column_embeddings(driver: Driver) -> None:
+    records, _, _ = driver.execute_query(
+        """//cypher
+        MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
+        WHERE c.description IS NOT NULL AND c.embedding IS NULL
+        RETURN t.name AS TableName, c.name AS ColumnName, c.description AS Description
+        """
+    )
+
+    if not records:
+        return
+
+    ollama_client = get_ollama_client()
+    ollama_embedding = os.environ.get("OLLAMA_EMBEDDING")
+    assert ollama_embedding is not None
+
+    column_data = []
+    descriptions = []
+
+    for record in tqdm(records, desc="Preparing column embeddings"):
+        column_data.append(
+            {"tableName": record["TableName"], "columnName": record["ColumnName"]}
+        )
+        descriptions.append(record["Description"])
 
     embeddings = ollama_client.embed(
         model=ollama_embedding,
@@ -274,9 +304,50 @@ def merge_column_nodes_descriptions_and_embeddings(
     )
 
 
-def merge_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
-    merge_table_nodes_descriptions_and_embeddings(driver, schema_df)
-    merge_column_nodes_descriptions_and_embeddings(driver, schema_df)
+def create_hybrid_search_indexes(driver: Driver) -> None:
+    driver.execute_query(
+        """//cypher
+        CREATE FULLTEXT INDEX schema_fulltext IF NOT EXISTS 
+        FOR (n:Table|Column) 
+        ON EACH [n.name, n.description]
+        """
+    )
+
+    driver.execute_query(
+        """//cypher
+        CREATE VECTOR INDEX table_embeddings IF NOT EXISTS 
+        FOR (t:Table) 
+        ON t.embedding
+        OPTIONS {indexConfig: {
+          `vector.dimensions`: 1024, 
+          `vector.similarity_function`: 'cosine'
+        }}
+        """
+    )
+
+    driver.execute_query(
+        """//cypher
+        CREATE VECTOR INDEX column_embeddings IF NOT EXISTS 
+        FOR (c:Column) 
+        ON c.embedding
+        OPTIONS {indexConfig: {
+          `vector.dimensions`: 1024, 
+          `vector.similarity_function`: 'cosine'
+        }}
+        """
+    )
+
+    driver.execute_query("CALL db.awaitIndexes(30)")
+
+
+def merge_nodes_descriptions_and_embeddings(
+    driver: Driver, schema_df: pd.DataFrame
+) -> None:
+    merge_table_descriptions(driver, schema_df)
+    merge_column_descriptions(driver, schema_df)
+    merge_table_embeddings(driver)
+    merge_column_embeddings(driver)
+    create_hybrid_search_indexes(driver)
 
 
 def populate_knowledge_graph() -> None:
@@ -292,7 +363,7 @@ def populate_knowledge_graph() -> None:
         schema_df = pd.read_sql_query(get_db_schema_query, conn)
         assert not schema_df.empty
         merge_schema_information(driver, schema_df)
-        merge_nodes_descriptions(driver, schema_df)
+        merge_nodes_descriptions_and_embeddings(driver, schema_df)
 
 
 if __name__ == "__main__":
