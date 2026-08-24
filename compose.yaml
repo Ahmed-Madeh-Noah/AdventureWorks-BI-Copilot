@@ -93,6 +93,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      ollama_setup:
+        condition: service_completed_successfully
     environment:
       UV_NO_DEV: 1
       PYTHONDONTWRITEBYTECODE: 1
@@ -100,7 +102,8 @@ services:
       MSSQL_NEO4J_SETUP_READER_USERNAME: ${MSSQL_NEO4J_SETUP_READER_USERNAME}
       MSSQL_NEO4J_SETUP_READER_PASSWORD: ${MSSQL_NEO4J_SETUP_READER_PASSWORD}
       NEO4J_USERNAME: ${NEO4J_USERNAME}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD} 
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      LLM: ${LLM}
     volumes:
       - ./neo4j_setup:/usr/src/app
     entrypoint:

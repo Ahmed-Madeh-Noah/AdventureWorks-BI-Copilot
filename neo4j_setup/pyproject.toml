@@ -11,6 +11,7 @@ dependencies = [
     "pandas>=3.0.5",
     "sqlalchemy>=2.1.0b2",
     "toon-format",
+    "tqdm>=4.70.0",
 ]
 
 [tool.uv.sources]

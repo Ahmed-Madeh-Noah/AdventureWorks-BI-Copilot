@@ -1,9 +1,11 @@
 import os
 
+import ollama
 import pandas as pd
-from neo4j import Driver, GraphDatabase, Record
+from neo4j import Driver, GraphDatabase
 from sqlalchemy import Engine, create_engine, text
 from toon_format import encode
+from tqdm import tqdm
 
 
 def get_database_engine() -> Engine:
@@ -73,24 +75,8 @@ def merge_schema_information(driver: Driver, schema_df: pd.DataFrame) -> None:
         )
 
 
-def get_table_relationships(records: list[Record]) -> dict[str, set[str]]:
-    table_relationships = {}
-    for record in records:
-        table_name = record["TableName"]
-        referenced_table_name = record["ReferencedTableName"]
-        if table_name not in table_relationships:
-            table_relationships[table_name] = {referenced_table_name}
-        else:
-            table_relationships[table_name].add(referenced_table_name)
-    return table_relationships
-
-
-def get_tables_of_interest(table_relationships: dict[str, set[str]]) -> list[set[str]]:
-    tables_of_interest = []
-    for table, referenced_tables in table_relationships.items():
-        referenced_tables.add(table)
-        tables_of_interest.append(referenced_tables)
-    return tables_of_interest
+def get_ollama_client() -> ollama.Client:
+    return ollama.Client(host="http://ollama:11434")
 
 
 def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
@@ -98,57 +84,135 @@ def merge_table_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> N
         """//cypher
         MATCH (t:Table)
         WHERE t.description IS NULL
-        MATCH (t)-[:HAS_COLUMN]->()-[:REFERENCES]->(refCol)
-        MATCH (refTable)-[:HAS_COLUMN]->(refCol)
+        
+        OPTIONAL MATCH (t)-[:HAS_COLUMN]->()-[:REFERENCES]->()<-[:HAS_COLUMN]-(refTable:Table)
         WHERE t.name <> refTable.name
-        RETURN t.name AS TableName, refTable.name AS ReferencedTableName
+        
+        RETURN t.name AS TableName, 
+               collect(DISTINCT refTable.name) AS ReferencedTables
         """
     )
-    table_relationships = get_table_relationships(records)
-    tables_of_interest = get_tables_of_interest(table_relationships)
-    for target_table, referenced_tables in zip(
-        table_relationships.keys(), tables_of_interest
-    ):
-        referenced_tables_schema = schema_df[
-            schema_df["TableName"].isin(referenced_tables)
-        ]
-        referenced_tables_schema = encode(referenced_tables_schema.to_csv(index=False))
+
+    ollama_client = get_ollama_client()
+
+    llm = os.environ.get("LLM")
+    assert llm is not None
+
+    for record in tqdm(records):
+        table_name = record["TableName"]
+        ref_tables = record["ReferencedTables"]
+
+        tables_to_include = [table_name] + ref_tables
+
+        relevant_schema = schema_df[schema_df["TableName"].isin(tables_to_include)]
+        schema_csv = encode(relevant_schema.to_csv(index=False))
+
         prompt = f"""
-                  You are a business intelligence copilot.
-                  I will provide you a target table and all the relevant database schema for you to generate a one-sentence long,
-                  business-friendly description for the table without overlapping with other tables' or columns' descriptions.
-                  Make sure to not use more than ten words.
+        Target Table: {table_name}
+        Referenced Tables Context: {", ".join(ref_tables) if ref_tables else "None"}
+        Relevant Database Schema:
+        {schema_csv}
+        """.replace(r"\n", "\n")
 
-                  Target Table: {target_table}
+        system = """
+        You are a business intelligence copilot.
+        I will provide you a target table, tables it references, and the relevant database schema. 
+        Generate a one-sentence long, business-friendly description for the table without overlapping with other tables' descriptions.
+        Make sure to not use more than ten words.
+        Respond in plain text with no formatting.
+        """
 
-                  Relevant Database Schema:
-                  {referenced_tables_schema}
-                  """.replace(r"\n", "\n")
+        description_response = ollama_client.generate(
+            model=llm,
+            prompt=prompt,
+            system=system,
+            think=True,
+            options={"seed": 42, "temperature": 0.0},
+        ).response
+
+        assert description_response is not None
+        final_description = description_response.replace(r"\n", "\n")
+
+        driver.execute_query(
+            """//cypher
+            MATCH (t:Table {name: $tableName})
+            SET t.description = $description
+            """,
+            tableName=table_name,
+            description=final_description,
+        )
+
+
+def merge_column_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
+    records, _, _ = driver.execute_query(
+        """//cypher
+        MATCH (t:Table)-[:HAS_COLUMN]->(c:Column)
+        WHERE c.description IS NULL
+        
+        OPTIONAL MATCH (t)-[:HAS_COLUMN]->()-[:REFERENCES]->(refCol)<-[:HAS_COLUMN]-(refTable:Table)
+        WHERE t.name <> refTable.name
+        
+        RETURN c.name AS ColumnName, 
+               t.name AS TableName, 
+               collect(DISTINCT refTable.name) AS ReferencedTables
+        """
+    )
+
+    ollama_client = get_ollama_client()
+
+    llm = os.environ.get("LLM")
+    assert llm is not None
+
+    for record in tqdm(records):
+        col_name = record["ColumnName"]
+        table_name = record["TableName"]
+        ref_tables = record["ReferencedTables"]
+
+        tables_to_include = [table_name] + ref_tables
+
+        relevant_schema = schema_df[schema_df["TableName"].isin(tables_to_include)]
+        schema_csv = encode(relevant_schema.to_csv(index=False))
+
+        prompt = f"""
+        Target Column: {col_name}
+        Parent Table: {table_name}
+        Relevant Database Schema:
+        {schema_csv}
+        """.replace(r"\n", "\n")
+
+        system = """
+        You are a business intelligence copilot.
+        I will provide you a target column, its parent table, and the relevant database schema. 
+        Generate a one-sentence long, business-friendly description for the column without overlapping with other tables' or columns' descriptions.
+        Make sure to not use more than ten words.
+        Respond in plain text with no formatting.
+        """
+
+        description_response = ollama_client.generate(
+            model=llm,
+            prompt=prompt,
+            system=system,
+            think=True,
+            options={"seed": 42, "temperature": 0.0},
+        ).response
+
+        assert description_response is not None
+        final_description = description_response.replace(r"\n", "\n")
+
+        driver.execute_query(
+            """//cypher
+            MATCH (t:Table {name: $tableName})-[:HAS_COLUMN]->(c:Column {name: $colName})
+            SET c.description = $description
+            """,
+            tableName=table_name,
+            colName=col_name,
+            description=final_description,
+        )
 
 
 def merge_nodes_descriptions(driver: Driver, schema_df: pd.DataFrame) -> None:
     merge_table_nodes_descriptions(driver, schema_df)
-    # records, _, _ = driver.execute_query(
-    #     """//cypher
-    #     MATCH (c:Column)
-    #     WHERE c.description IS NULL
-    #     MATCH (t)-[:HAS_COLUMN]->(c)
-    #     MATCH (t)-[:HAS_COLUMN]->()-[:REFERENCES]->(refCol)
-    #     MATCH (refTable)-[:HAS_COLUMN]->(refCol)
-    #     WHERE t.name <> refTable.name
-    #     RETURN c.name AS ColumnName, t.name AS TableName, refTable.name AS ReferencedTableName
-    #     """
-    # )
-    # table_relationships = {}
-    # for record in records:
-    #     table_name = record["TableName"]
-    #     referenced_table_name = record["ReferencedTableName"]
-    #     if table_name == referenced_table_name:
-    #         continue
-    #     if table_name not in table_relationships:
-    #         table_relationships[table_name] = {referenced_table_name}
-    #     else:
-    #         table_relationships[table_name].add(referenced_table_name)
+    merge_column_nodes_descriptions(driver, schema_df)
 
 
 def populate_knowledge_graph() -> None:
