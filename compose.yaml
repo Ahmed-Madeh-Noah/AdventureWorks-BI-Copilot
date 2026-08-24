@@ -10,8 +10,6 @@ services:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
       MSSQL_NEO4J_SETUP_READER_USERNAME: ${MSSQL_NEO4J_SETUP_READER_USERNAME}
       MSSQL_NEO4J_SETUP_READER_PASSWORD: ${MSSQL_NEO4J_SETUP_READER_PASSWORD}
-      MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
-      MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
       MSSQL_DBGATE_READER_USERNAME: ${MSSQL_DBGATE_READER_USERNAME}
       MSSQL_DBGATE_READER_PASSWORD: ${MSSQL_DBGATE_READER_PASSWORD}
       ACCEPT_EULA: Y
@@ -21,7 +19,7 @@ services:
     entrypoint: ./entrypoint.sh
     restart: on-failure:3
     healthcheck:
-      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-i", "/usr/config/check_setup.sql", "-v", "MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}", "MSSQL_CONTEXT_RETRIEVER_READER_USERNAME=${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}", "-b" ]
+      test: [ "CMD", "/opt/mssql-tools18/bin/sqlcmd", "-U", "sa", "-P", "${MSSQL_SA_PASSWORD}", "-S", "localhost", "-C", "-i", "/usr/config/check_setup.sql", "-v", "MSSQL_DBGATE_READER_USERNAME=${MSSQL_DBGATE_READER_USERNAME}", "-b" ]
       start_period: 120s
 
   ollama:
@@ -55,7 +53,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING}
+      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING},${OLLAMA_THINK}
     volumes:
       - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
@@ -116,38 +114,6 @@ services:
       - main
     restart: "no"
 
-  context_retriever:
-    container_name: context_retriever
-    build:
-      context: ./context_retriever
-      dockerfile: Dockerfile
-    depends_on:
-      mssql:
-        condition: service_healthy
-    expose:
-      - 8000
-    environment:
-      UV_NO_DEV: 1
-      PYTHONDONTWRITEBYTECODE: 1
-      UV_PROJECT_ENVIRONMENT: /opt/venv
-      MSSQL_SERVER: mssql
-      MSSQL_PORT: 1433
-      MSSQL_DATABASE: AdventureWorks2025
-      MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
-      MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
-    volumes:
-      - ./context_retriever:/usr/src/app
-    entrypoint:
-      - uv
-      - run
-      - -m
-      - fastapi
-      - run
-    restart: on-failure:3
-    healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:8000/health/live" ]
-      start_period: 120s
-
   dbgate:
     container_name: dbgate
     build:
@@ -183,7 +149,11 @@ services:
         condition: service_healthy
       ollama_setup:
         condition: service_completed_successfully
-      context_retriever:
+      neo4j:
+        condition: service_healthy
+      neo4j_setup:
+        condition: service_completed_successfully
+      mssql:
         condition: service_healthy
     ports:
       - "127.0.0.1:${STREAMLIT_PORT}:8501"
