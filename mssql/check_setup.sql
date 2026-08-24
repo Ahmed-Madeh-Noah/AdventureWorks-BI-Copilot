@@ -10,6 +10,15 @@ IF NOT EXISTS (
     FROM
         sys.server_principals
     WHERE
+        name = '$(MSSQL_NEO4J_SETUP_READER_USERNAME)'
+) RAISERROR ('DBGATE user is not ready.', 16, 1);
+
+IF NOT EXISTS (
+    SELECT
+        *
+    FROM
+        sys.server_principals
+    WHERE
         name = '$(MSSQL_DBGATE_READER_USERNAME)'
 ) RAISERROR ('DBGATE user is not ready.', 16, 1);
 

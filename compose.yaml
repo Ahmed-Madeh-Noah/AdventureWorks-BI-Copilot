@@ -8,6 +8,8 @@ services:
       - 1433
     environment:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_NEO4J_SETUP_READER_USERNAME: ${MSSQL_NEO4J_SETUP_READER_USERNAME}
+      MSSQL_NEO4J_SETUP_READER_PASSWORD: ${MSSQL_NEO4J_SETUP_READER_PASSWORD}
       MSSQL_CONTEXT_RETRIEVER_READER_USERNAME: ${MSSQL_CONTEXT_RETRIEVER_READER_USERNAME}
       MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD: ${MSSQL_CONTEXT_RETRIEVER_READER_PASSWORD}
       MSSQL_DBGATE_READER_USERNAME: ${MSSQL_DBGATE_READER_USERNAME}
@@ -53,12 +55,65 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-      MODELS: qwen3:4b-thinking-2507-q4_K_M
+      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING}
     volumes:
       - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
       - /bin/bash
       - /setup_models.sh
+    restart: "no"
+
+  neo4j:
+    container_name: neo4j
+    image: neo4j:latest
+    expose:
+      - 7687
+    ports:
+      - "127.0.0.1:${NEO4J_HTTP_PORT}:7474"
+      - "127.0.0.1:${NEO4J_BOLT_PORT}:7687"
+    environment:
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_logs:/logs
+      - neo4j_conf:/conf
+      - neo4j_data:/data
+      - neo4j_plugins:/plugins
+    restart: on-failure:3
+    healthcheck:
+      test: [ "CMD", "neo4j", "status" ]
+      start_period: 120s
+
+  neo4j_setup:
+    container_name: neo4j_setup
+    build:
+      context: ./neo4j_setup
+      dockerfile: Dockerfile
+    depends_on:
+      mssql:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama_setup:
+        condition: service_completed_successfully
+    environment:
+      UV_NO_DEV: 1
+      PYTHONDONTWRITEBYTECODE: 1
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      MSSQL_NEO4J_SETUP_READER_USERNAME: ${MSSQL_NEO4J_SETUP_READER_USERNAME}
+      MSSQL_NEO4J_SETUP_READER_PASSWORD: ${MSSQL_NEO4J_SETUP_READER_PASSWORD}
+      NEO4J_USERNAME: ${NEO4J_USERNAME}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      OLLAMA_LLM: ${OLLAMA_LLM}
+      OLLAMA_EMBEDDING: ${OLLAMA_EMBEDDING}
+    volumes:
+      - ./neo4j_setup:/usr/src/app
+    entrypoint:
+      - uv
+      - run
+      - -m
+      - main
     restart: "no"
 
   context_retriever:
@@ -124,6 +179,8 @@ services:
       context: ./streamlit_app
       dockerfile: Dockerfile
     depends_on:
+      ollama:
+        condition: service_healthy
       ollama_setup:
         condition: service_completed_successfully
       context_retriever:
@@ -152,3 +209,7 @@ volumes:
   mssql_data:
   ollama_data:
   dbgate_data:
+  neo4j_logs:
+  neo4j_conf:
+  neo4j_data:
+  neo4j_plugins:
