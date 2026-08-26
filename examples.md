@@ -9,5 +9,4 @@ Group the customers by their marital status and count how many fall into each ca
 ```
 
 ### Multi-Table Joins (Relational Queries)
-```txt
-```
+`Enabled with a greater scale model`
