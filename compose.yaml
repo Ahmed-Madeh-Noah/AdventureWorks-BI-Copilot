@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING},${OLLAMA_THINK}
+      MODELS: ${OLLAMA_LLM},${OLLAMA_EMBEDDING},${OLLAMA_CODER}
     volumes:
       - ./ollama_setup/setup_models.sh:/setup_models.sh
     entrypoint:
@@ -161,6 +161,13 @@ services:
       UV_NO_DEV: 1
       PYTHONDONTWRITEBYTECODE: 1
       UV_PROJECT_ENVIRONMENT: /opt/venv
+      NEO4J_USERNAME: ${NEO4J_USERNAME}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      OLLAMA_EMBEDDING: ${OLLAMA_EMBEDDING}
+      OLLAMA_LLM: ${OLLAMA_LLM}
+      OLLAMA_CODER: ${OLLAMA_CODER}
+      MSSQL_NEO4J_SETUP_READER_USERNAME: ${MSSQL_NEO4J_SETUP_READER_USERNAME}
+      MSSQL_NEO4J_SETUP_READER_PASSWORD: ${MSSQL_NEO4J_SETUP_READER_PASSWORD}
     volumes:
       - ./streamlit_app:/usr/src/app
     entrypoint:
